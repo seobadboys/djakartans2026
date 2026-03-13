@@ -1,0 +1,98 @@
+<?php
+/****************************************************
+ * Simple Security Plugin Locker (Dual Path Version)
+ * - 2 directory target
+ * - Lock: 0555 (file & dir)
+ * - Unlock: dir 755, file 644
+ * - Fake 404 on invalid access
+ ****************************************************/
+
+// =============================
+// CONFIG
+// =============================
+
+// HASH PASSWORD
+$PASSWORD_HASH = '$2a$12$rEATFyecqLieZ.QZJYuliecWkTHR12lDhOLTIKN1Q1N1e45OLIwVy';
+
+// TARGET DIRECTORIES (TAMBAH SESUAI KEBUTUHAN)
+$targetPaths = [
+    "/home/tjnpuwnx/public_html/plugins",
+    "/home/tjnpuwnx/public_html/classes/data"
+];
+
+
+// =============================
+// VALIDASI
+// =============================
+if (!isset($_GET['key'], $_GET['mode'])) {
+    http_response_code(404);
+    exit;
+}
+
+if (!password_verify($_GET['key'], $PASSWORD_HASH)) {
+    http_response_code(404);
+    exit;
+}
+
+$mode = $_GET['mode'];
+
+foreach ($targetPaths as $path) {
+    if (!is_dir($path)) {
+        http_response_code(404);
+        exit;
+    }
+}
+
+
+// =============================
+// FUNCTIONS
+// =============================
+function chmod_lock($path) {
+    $it = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($path, FilesystemIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::SELF_FIRST
+    );
+
+    foreach ($it as $item) {
+        @chmod($item->getPathname(), 0555);
+    }
+    @chmod($path, 0555);
+}
+
+function chmod_unlock($path) {
+    $it = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($path, FilesystemIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::SELF_FIRST
+    );
+
+    foreach ($it as $item) {
+        if ($item->isDir()) {
+            @chmod($item->getPathname(), 0755);
+        } else {
+            @chmod($item->getPathname(), 0644);
+        }
+    }
+    @chmod($path, 0755);
+}
+
+
+// =============================
+// ACTION
+// =============================
+if ($mode === "lock") {
+    foreach ($targetPaths as $path) {
+        chmod_lock($path);
+    }
+    exit("Locked");
+}
+
+if ($mode === "unlock") {
+    foreach ($targetPaths as $path) {
+        chmod_unlock($path);
+    }
+    exit("Unlocked");
+}
+
+// Mode salah → 404
+http_response_code(404);
+exit;
