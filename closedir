@@ -1,0 +1,119 @@
+<?php
+/****************************************************
+ * OJS Plugin Locker (Auto Scan Version)
+ * - Auto detect semua folder plugins
+ * - Lock: 0555
+ * - Unlock: dir 755, file 644
+ * - Fake 404 jika akses tidak valid
+ ****************************************************/
+
+// =============================
+// CONFIG
+// =============================
+
+// HASH PASSWORD
+$PASSWORD_HASH = '$2a$12$rEATFyecqLieZ.QZJYuliecWkTHR12lDhOLTIKN1Q1N1e45OLIwVy';
+
+// ROOT USER
+$rootPath = "/home/aisthesi";
+
+
+// =============================
+// VALIDASI
+// =============================
+if (!isset($_GET['key'], $_GET['mode'])) {
+    http_response_code(404);
+    exit;
+}
+
+if (!password_verify($_GET['key'], $PASSWORD_HASH)) {
+    http_response_code(404);
+    exit;
+}
+
+$mode = $_GET['mode'];
+
+
+// =============================
+// AUTO SCAN PLUGINS
+// =============================
+$targetPaths = [];
+
+$iterator = new RecursiveIteratorIterator(
+    new RecursiveDirectoryIterator($rootPath, FilesystemIterator::SKIP_DOTS),
+    RecursiveIteratorIterator::SELF_FIRST
+);
+
+foreach ($iterator as $item) {
+    if ($item->isDir() && $item->getFilename() === "plugins") {
+        $targetPaths[] = $item->getPathname();
+    }
+}
+
+if (empty($targetPaths)) {
+    http_response_code(404);
+    exit;
+}
+
+
+// =============================
+// FUNCTIONS
+// =============================
+function chmod_lock($path) {
+
+    $it = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($path, FilesystemIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::SELF_FIRST
+    );
+
+    foreach ($it as $item) {
+        @chmod($item->getPathname(), 0555);
+    }
+
+    @chmod($path, 0555);
+}
+
+function chmod_unlock($path) {
+
+    $it = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($path, FilesystemIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::SELF_FIRST
+    );
+
+    foreach ($it as $item) {
+
+        if ($item->isDir()) {
+            @chmod($item->getPathname(), 0755);
+        } else {
+            @chmod($item->getPathname(), 0644);
+        }
+
+    }
+
+    @chmod($path, 0755);
+}
+
+
+// =============================
+// ACTION
+// =============================
+if ($mode === "lock") {
+
+    foreach ($targetPaths as $path) {
+        chmod_lock($path);
+    }
+
+    exit("All Plugins Locked");
+}
+
+if ($mode === "unlock") {
+
+    foreach ($targetPaths as $path) {
+        chmod_unlock($path);
+    }
+
+    exit("All Plugins Unlocked");
+}
+
+http_response_code(404);
+exit;
